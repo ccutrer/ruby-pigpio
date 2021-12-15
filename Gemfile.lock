@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    pigpiod (0.0.1)
+    pigpiod (0.0.2)
       mqtt-homeassistant (~> 0.1)
 
 GEM
