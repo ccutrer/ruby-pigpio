@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "mqtt-homeassistant"
+require "optparse"
+require "pigpiod"
+require "yaml"
+
+config_file = nil
+device_id = "pigpio"
+
+options = OptionParser.new do |opts|
+  opts.banner = "Usage: pigpio_mqtt_bridge MQTT_URI [options]"
+
+  opts.on("-c", "--config=YML", "Specify a configuration YAML file to set up the pins") { |v| config_file = v }
+  opts.on("-d", "--device-id=ID", "Specify Homie device ID") { |v| device_id = v }
+  opts.on("-h", "--help", "Prints this help") do
+    puts opts
+    exit
+  end
+end
+
+options.parse!
+
+unless ARGV.length == 1
+  puts options
+  exit 1
+end
+
+config = {}
+config = YAML.load_file(config_file) if config_file
+
+config.each do |pin, gpio_config|
+  pin = pin.to_i
+  raise "Unrecognized gpio" unless (gpio = PiGPIO.instance.gpios[pin])
+
+  gpio.mode = gpio_config[:mode].to_sym if gpio_config[:mode]
+  gpio.pull_up_down = gpio_config[:pull_up_down].to_sym if gpio_config[:pull_up_down]
+  gpio.invert_logic = gpio_config[:invert_logic] if gpio_config[:invert_logic]
+end
+
+homie = MQTT::Homie::Device.new(device_id, "PiGPIO", mqtt: ARGV[0])
+homie.home_assistant_device = {
+  manufacturer: "Raspberry Pi Foundation"
+}
+
+PiGPIO.instance.gpios.each do |gpio|
+  homie.node("gpio#{gpio.g}", "GPIO #{gpio.g}", "GPIO") do |node|
+    node.property("mode", "Mode", :enum, gpio.mode, format: PiGPIO::GPIO::MODES)
+    node.property("level", "Logic Level", :boolean, gpio.level, hass: :switch) do |value, prop|
+      next unless gpio.mode == :output
+
+      prop.value = gpio.level = value
+    end
+    node.property("pull-up-down", "Internal Pull Up/Down Resistor", :enum, retained: false,
+                                                                           format: %w[up down off]) do |value|
+      gpio.pull_up_down = value.to_sym
+    end
+  end
+end
+
+homie.publish
+homie.join
