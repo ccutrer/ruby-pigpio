@@ -34,9 +34,9 @@ config.each do |pin, gpio_config|
   pin = pin.to_i
   raise "Unrecognized gpio" unless (gpio = PiGPIO.instance.gpios[pin])
 
-  gpio.mode = gpio_config[:mode].to_sym if gpio_config[:mode]
-  gpio.pull_up_down = gpio_config[:pull_up_down].to_sym if gpio_config[:pull_up_down]
-  gpio.invert_logic = gpio_config[:invert_logic] if gpio_config[:invert_logic]
+  gpio.mode = gpio_config["mode"].to_sym if gpio_config["mode"]
+  gpio.pull_up_down = gpio_config["pull_up_down"].to_sym if gpio_config["pull_up_down"]
+  gpio.invert_logic = gpio_config["invert_logic"] if gpio_config["invert_logic"]
 end
 
 homie = MQTT::Homie::Device.new(device_id, "PiGPIO", mqtt: ARGV[0])
@@ -55,6 +55,10 @@ PiGPIO.instance.gpios.each do |gpio|
     node.property("pull-up-down", "Internal Pull Up/Down Resistor", :enum, retained: false,
                                                                            format: %w[up down off]) do |value|
       gpio.pull_up_down = value.to_sym
+    end
+    node.property("invert-logic", "Invert Logic", :boolean, gpio.invert_logic) do |value|
+      gpio.invert_logic = value
+      node["level"] = gpio.level
     end
   end
 end
