@@ -34,7 +34,12 @@ config.each do |pin, gpio_config|
   pin = pin.to_i
   raise "Unrecognized gpio" unless (gpio = PiGPIO.instance.gpios[pin])
 
-  gpio.mode = gpio_config["mode"].to_sym if gpio_config["mode"]
+  desired_mode = gpio_config["mode"]&.to_sym
+  if desired_mode && desired_mode != gpio.mode
+    gpio.mode = desired_mode
+    # reset to to high if first changing to output
+    gpio.level = true if desired_mode == :output
+  end
   gpio.pull_up_down = gpio_config["pull_up_down"].to_sym if gpio_config["pull_up_down"]
   gpio.invert_logic = gpio_config["invert_logic"] if gpio_config["invert_logic"]
 end
